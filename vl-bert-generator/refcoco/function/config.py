@@ -51,6 +51,10 @@ _C.DATASET.TEST_BOXES = "gt"   # "gt" or "proposal"
 _C.DATASET.PROPOSAL_SOURCE = 'official'  # "official" or "vg"
 _C.DATASET.USE_IMDB = True
 
+_C.DATASET.SYNZ_ROOT = ''
+_C.DATASET.PREDICTION_ROOT = ''
+_C.DATASET.DESCRIPTION_PATH = ''
+
 # ------------------------------------------------------------------------------------- #
 # Common network options
 # ------------------------------------------------------------------------------------- #
@@ -122,6 +126,12 @@ _C.NETWORK.CLASSIFIER_DROPOUT = 0.1
 _C.NETWORK.CLASSIFIER_SIGMOID = False
 _C.NETWORK.CLASSIFIER_SIGMOID_LOSS_POSITIVE_WEIGHT = 1.0
 
+_C.NETWORK.GPT_VOCAB_SIZE = 25
+_C.NETWORK.GPT_BLOCK_SIZE = 50
+_C.NETWORK.GPT_N_LAYER = 6
+_C.NETWORK.GPT_N_HEAD = 12
+_C.NETWORK.GPT_N_EMBD = 768
+
 # ------------------------------------------------------------------------------------- #
 # Common training related options
 # ------------------------------------------------------------------------------------- #
@@ -175,7 +185,7 @@ _C.TEST.BATCH_IMAGES = 1
 
 def update_config(config_file):
     with open(config_file) as f:
-        exp_config = edict(yaml.load(f))
+        exp_config = edict(yaml.safe_load(f))
         for k, v in exp_config.items():
             if k in config:
                 if isinstance(v, dict):

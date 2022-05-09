@@ -1,8 +1,8 @@
 ---
 RNG_SEED: 12345
-OUTPUT_PATH: './output/vl-bert/refcoco+'
+OUTPUT_PATH: './output/vl-bert/synz'
 MODULE: ResNetVLBERT
-GPUS: '0,1,2,3'
+GPUS: '2'
 LOG_FREQUENT: 100
 VAL_FREQUENT: 1
 CHECKPOINT_FREQUENT: 1
@@ -13,10 +13,12 @@ SCALES:
 - 1000
 
 DATASET:
-# TODO 更换数据集
-  DATASET: refcoco+
+  DATASET: synz
   LABEL_INDEX_IN_BATCH: -1
   APPEND_INDEX: false
+  SYNZ_ROOT: '/home/py/synz/data/SynZ_Download'
+  PREDICTION_ROOT: '../data/synz_prediction'
+  DESCRIPTION_PATH: '../data/description/screen_summaries_fixed.csv'
   DATASET_PATH: './data/coco'
   ROOT_PATH: './'
   TRAIN_IMAGE_SET: 'train'
@@ -85,11 +87,18 @@ NETWORK:
 
   CLASSIFIER_DROPOUT: 0.0
 
+  # 21 个类别, 0 不使用, 再加 bos, eos, pad tokens 三项
+  GPT_VOCAB_SIZE: 25
+  GPT_BLOCK_SIZE: 50
+  GPT_N_LAYER: 6
+  GPT_N_HEAD: 12
+  GPT_N_EMBD: 768
+
 TRAIN:
   SHUFFLE: true
   FLIP_PROB: 0.5
   BATCH_IMAGES: 4
-  ASPECT_GROUPING: true
+  ASPECT_GROUPING: false
   RESUME: false
   AUTO_RESUME: true
   BEGIN_EPOCH: 0

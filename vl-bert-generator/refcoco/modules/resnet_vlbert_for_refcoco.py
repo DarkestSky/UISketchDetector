@@ -6,6 +6,7 @@ from external.pytorch_pretrained_bert import BertTokenizer
 from common.module import Module
 from common.fast_rcnn import FastRCNN
 from common.visual_linguistic_bert import VisualLinguisticBert, VisualLinguisticBertMVRCHeadTransform
+from .gpt import GPTConfig, GPT
 
 BERT_WEIGHTS_NAME = 'pytorch_model.bin'
 
@@ -14,6 +15,7 @@ class ResNetVLBERT(Module):
     def __init__(self, config):
 
         super(ResNetVLBERT, self).__init__(config)
+        self.add_image_as_a_box = config.DATASET.ADD_IMAGE_AS_A_BOX
 
         self.image_feature_extractor = FastRCNN(config,
                                                 average_pool=True,
@@ -38,15 +40,22 @@ class ResNetVLBERT(Module):
         self.vlbert = VisualLinguisticBert(config.NETWORK.VLBERT,
                                          language_pretrained_model_path=language_pretrained_model_path)
 
-        transform = VisualLinguisticBertMVRCHeadTransform(config.NETWORK.VLBERT)
-        # TODO 替换这里的部分
-        linear = nn.Linear(config.NETWORK.VLBERT.hidden_size, 1)
-        self.final_mlp = nn.Sequential(
-            transform,
-            nn.Dropout(config.NETWORK.CLASSIFIER_DROPOUT, inplace=False),
-            linear
-        )
-
+        # transform = VisualLinguisticBertMVRCHeadTransform(config.NETWORK.VLBERT)
+        # linear = nn.Linear(config.NETWORK.VLBERT.hidden_size, 1)
+        # self.final_mlp = nn.Sequential(
+        #     transform,
+        #     nn.Dropout(config.NETWORK.CLASSIFIER_DROPOUT, inplace=False),
+        #     linear
+        # )
+        
+        self.gpt_bos_token = config.NETWORK.GPT_VOCAB_SIZE - 3
+        self.gpt_eos_token = config.NETWORK.GPT_VOCAB_SIZE - 2
+        self.gpt_pad_token = config.NETWORK.GPT_VOCAB_SIZE - 1
+        self.gpt_max_length = config.NETWORK.GPT_BLOCK_SIZE
+        gpt_config = GPTConfig(config.NETWORK.GPT_VOCAB_SIZE, config.NETWORK.GPT_BLOCK_SIZE, 
+                               n_layer = config.NETWORK.GPT_N_LAYER, n_head = config.NETWORK.GPT_N_HEAD, n_embd = config.NETWORK.GPT_N_EMBD)
+        self.gpt = GPT(gpt_config)
+        
         # init weights
         self.init_weight()
 
@@ -57,10 +66,10 @@ class ResNetVLBERT(Module):
         if self.object_linguistic_embeddings is not None:
             self.object_linguistic_embeddings.weight.data.normal_(mean=0.0,
                                                                   std=self.config.NETWORK.VLBERT.initializer_range)
-        for m in self.final_mlp.modules():
-            if isinstance(m, torch.nn.Linear):
-                torch.nn.init.xavier_uniform_(m.weight)
-                torch.nn.init.constant_(m.bias, 0)
+        # for m in self.final_mlp.modules():
+        #     if isinstance(m, torch.nn.Linear):
+        #         torch.nn.init.xavier_uniform_(m.weight)
+        #         torch.nn.init.constant_(m.bias, 0)
 
     def train(self, mode=True):
         super(ResNetVLBERT, self).train(mode)
@@ -76,7 +85,8 @@ class ResNetVLBERT(Module):
                       boxes,
                       im_info,
                       expression,
-                      label,
+                      pred_labels,
+                      gt_labels
                       ):
         ###########################################
 
@@ -87,7 +97,8 @@ class ResNetVLBERT(Module):
         origin_len = boxes.shape[1]
         box_mask = box_mask[:, :max_len]
         boxes = boxes[:, :max_len]
-        label = label[:, :max_len]
+        pred_labels = pred_labels[:, :max_len]
+        gt_labels = gt_labels[:, :max_len]
 
         obj_reps = self.image_feature_extractor(images=images,
                                                 boxes=boxes,
@@ -128,35 +139,41 @@ class ResNetVLBERT(Module):
                                                                  output_text_and_object_separately=True)
 
         ###########################################
-        outputs = {}
+        # outputs = {}
 
         # classifier
-        logits = self.final_mlp(hidden_states_regions).squeeze(-1)
+        # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
+        
+        # generator
+        pred_seq, target_seq = self.padding_gpt_seq(pred_labels, gt_labels)
+        logits, loss = self.gpt(pred_seq, hidden_states_regions, target_seq, pad_token = self.gpt_pad_token)
 
         # loss
-        cls_loss = F.binary_cross_entropy_with_logits(logits[box_mask], label[box_mask])
+        # cls_loss = F.binary_cross_entropy_with_logits(logits[box_mask], label[box_mask])
 
         # pad back to origin len for compatibility with DataParallel
-        logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
-        logits_[:, :logits.shape[1]] = logits
-        logits = logits_
-        label_ = label.new_zeros((logits.shape[0], origin_len)).fill_(-1)
-        label_[:, :label.shape[1]] = label
-        label = label_
+        # logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
+        # logits_[:, :logits.shape[1]] = logits
+        # logits = logits_
+        # label_ = label.new_zeros((logits.shape[0], origin_len)).fill_(-1)
+        # label_[:, :label.shape[1]] = label
+        # label = label_
 
-        outputs.update({'label_logits': logits,
-                        'label': label,
-                        'cls_loss': cls_loss})
+        # outputs.update({'label_logits': logits,
+        #                 'label': label,
+        #                 'cls_loss': cls_loss})
 
-        loss = cls_loss.mean()
+        # loss = cls_loss.mean()
 
-        return outputs, loss
+        return logits, loss
 
     def inference_forward(self,
                           image,
                           boxes,
                           im_info,
-                          expression):
+                          expression,
+                          pred_labels,
+                          gt_labels):
 
         ###########################################
 
@@ -207,22 +224,44 @@ class ResNetVLBERT(Module):
                                                                  output_text_and_object_separately=True)
 
         ###########################################
-        outputs = {}
+        # outputs = {}
 
         # classifier
-        logits = self.final_mlp(hidden_states_regions).squeeze(-1)
+        # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
+        
+        # generator
+        pred_seq, target_seq = self.padding_gpt_seq(pred_labels, gt_labels)
+        logits, loss = self.gpt(pred_seq, hidden_states_regions, pad_token = self.gpt_pad_token)
 
         # pad back to origin len for compatibility with DataParallel
-        logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
-        logits_[:, :logits.shape[1]] = logits
-        logits = logits_
+        # logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
+        # logits_[:, :logits.shape[1]] = logits
+        # logits = logits_
 
-        w_ratio = im_info[:, 2]
-        h_ratio = im_info[:, 3]
-        pred_boxes = boxes[_batch_inds, logits.argmax(1), :4]
-        pred_boxes[:, [0, 2]] /= w_ratio.unsqueeze(1)
-        pred_boxes[:, [1, 3]] /= h_ratio.unsqueeze(1)
-        outputs.update({'label_logits': logits,
-                        'pred_boxes': pred_boxes})
+        # w_ratio = im_info[:, 2]
+        # h_ratio = im_info[:, 3]
+        # pred_boxes = boxes[_batch_inds, logits.argmax(1), :4]
+        # pred_boxes[:, [0, 2]] /= w_ratio.unsqueeze(1)
+        # pred_boxes[:, [1, 3]] /= h_ratio.unsqueeze(1)
+        # outputs.update({'label_logits': logits,
+        #                 'pred_boxes': pred_boxes})
+        
+        if self.add_image_as_a_box:
+            boxes = boxes[:, 1:]
 
-        return outputs
+        return logits, boxes
+
+    def padding_gpt_seq(self, pred_seq, target_seq):
+        chunk: torch.Tensor = torch.zeros(self.gpt_max_length+1, dtype=torch.long) + self.gpt_pad_token
+        chunk[0] = self.gpt_bos_token
+        chunk[1:len(pred_seq)+1] = pred_seq
+        chunk[len(pred_seq)+1] = self.gpt_eos_token
+        x = chunk[:-1]
+        
+        chunk: torch.Tensor = torch.zeros(self.gpt_max_length+1, dtype=torch.long) + self.gpt_pad_token
+        chunk[0] = self.gpt_bos_token
+        chunk[1:len(target_seq)+1] = target_seq
+        chunk[len(target_seq)+1] = self.gpt_eos_token
+        y = chunk[1:]
+        
+        return x,y

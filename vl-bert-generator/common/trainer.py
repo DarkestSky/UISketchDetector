@@ -78,15 +78,12 @@ def train(net,
     for epoch in range(begin_epoch, end_epoch):
         print('PROGRESS: %.2f%%' % (100.0 * epoch / end_epoch))
 
-        import pdb
-        pdb.set_trace()
-
         # set epoch as random seed of sampler while distributed training
         if train_sampler is not None and hasattr(train_sampler, 'set_epoch'):
             train_sampler.set_epoch(epoch)
 
         # reset metrics
-        metrics.reset()
+        # metrics.reset()
 
         # set net to train mode
         net.train()
@@ -161,24 +158,24 @@ def train(net,
 
             # update metric
             metric_time = time.time()
-            metrics.update(outputs)
-            if writer is not None:
-                with torch.no_grad():
-                    for group_i, param_group in enumerate(optimizer.param_groups):
-                        writer.add_scalar(tag='Initial-LR/Group_{}'.format(group_i),
-                                          scalar_value=param_group['initial_lr'],
-                                          global_step=global_steps)
-                        writer.add_scalar(tag='LR/Group_{}'.format(group_i),
-                                          scalar_value=param_group['lr'],
-                                          global_step=global_steps)
-                    writer.add_scalar(tag='Train-Loss',
-                                      scalar_value=float(loss.item()),
-                                      global_step=global_steps)
-                    name, value = metrics.get()
-                    for n, v in zip(name, value):
-                        writer.add_scalar(tag='Train-' + n,
-                                          scalar_value=v,
-                                          global_step=global_steps)
+            # metrics.update(outputs)
+            # if writer is not None:
+            #     with torch.no_grad():
+            #         for group_i, param_group in enumerate(optimizer.param_groups):
+            #             writer.add_scalar(tag='Initial-LR/Group_{}'.format(group_i),
+            #                               scalar_value=param_group['initial_lr'],
+            #                               global_step=global_steps)
+            #             writer.add_scalar(tag='LR/Group_{}'.format(group_i),
+            #                               scalar_value=param_group['lr'],
+            #                               global_step=global_steps)
+            #         writer.add_scalar(tag='Train-Loss',
+            #                           scalar_value=float(loss.item()),
+            #                           global_step=global_steps)
+            #         name, value = metrics.get()
+            #         for n, v in zip(name, value):
+            #             writer.add_scalar(tag='Train-' + n,
+            #                               scalar_value=v,
+            #                               global_step=global_steps)
 
             metric_time = time.time() - metric_time
 

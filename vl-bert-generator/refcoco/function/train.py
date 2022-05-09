@@ -22,7 +22,7 @@ from common.callbacks.epoch_end_callbacks.validation_monitor import ValidationMo
 from common.callbacks.epoch_end_callbacks.checkpoint import Checkpoint
 from common.lr_scheduler import WarmupMultiStepLR
 from common.nlp.bert.optimization import AdamW, WarmupLinearSchedule
-from refcoco.data.build import make_dataloader, build_dataset, build_transforms
+from refcoco.data.build import make_dataloader
 from refcoco.modules import *
 from refcoco.function.val import do_validation
 
@@ -159,8 +159,10 @@ def train_net(args, config):
             torch.cuda.set_device(int(config.GPUS))
             model.cuda()
 
+        import pdb
+        pdb.set_trace()
+
         # loader
-        # TODO 替换 dataloader
         train_loader = make_dataloader(config, mode='train', distributed=False)
         val_loader = make_dataloader(config, mode='val', distributed=False)
         train_sampler = None
@@ -215,34 +217,35 @@ def train_net(args, config):
         smart_partial_load_model_state_dict(model, pretrain_state_dict)
 
     # metrics
-    train_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
-                                                      num_replicas=world_size if args.dist else 1),
-                          refcoco_metrics.ClsAccuracy(allreduce=args.dist,
-                                                      num_replicas=world_size if args.dist else 1),
-                          refcoco_metrics.ClsPosAccuracy(allreduce=args.dist,
-                                                         num_replicas=world_size if args.dist else 1),
-                          refcoco_metrics.ClsPosFraction(allreduce=args.dist,
-                                                         num_replicas=world_size if args.dist else 1),
-                          ]
-    val_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
-                                                    num_replicas=world_size if args.dist else 1)]
-    for output_name, display_name in config.TRAIN.LOSS_LOGGERS:
-        train_metrics_list.append(
-            refcoco_metrics.LossLogger(output_name, display_name=display_name, allreduce=args.dist,
-                                       num_replicas=world_size if args.dist else 1))
+    # TODO 这里有没有必要保留
+    # train_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
+    #                                                   num_replicas=world_size if args.dist else 1),
+    #                       refcoco_metrics.ClsAccuracy(allreduce=args.dist,
+    #                                                   num_replicas=world_size if args.dist else 1),
+    #                       refcoco_metrics.ClsPosAccuracy(allreduce=args.dist,
+    #                                                      num_replicas=world_size if args.dist else 1),
+    #                       refcoco_metrics.ClsPosFraction(allreduce=args.dist,
+    #                                                      num_replicas=world_size if args.dist else 1),
+    #                       ]
+    # val_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
+    #                                                 num_replicas=world_size if args.dist else 1)]
+    # for output_name, display_name in config.TRAIN.LOSS_LOGGERS:
+    #     train_metrics_list.append(
+    #         refcoco_metrics.LossLogger(output_name, display_name=display_name, allreduce=args.dist,
+    #                                    num_replicas=world_size if args.dist else 1))
 
-    train_metrics = CompositeEvalMetric()
-    val_metrics = CompositeEvalMetric()
-    for child_metric in train_metrics_list:
-        train_metrics.add(child_metric)
-    for child_metric in val_metrics_list:
-        val_metrics.add(child_metric)
+    # train_metrics = CompositeEvalMetric()
+    # val_metrics = CompositeEvalMetric()
+    # for child_metric in train_metrics_list:
+    #     train_metrics.add(child_metric)
+    # for child_metric in val_metrics_list:
+    #     val_metrics.add(child_metric)
 
     # epoch end callbacks
     epoch_end_callbacks = []
     if (rank is None) or (rank == 0):
         epoch_end_callbacks = [Checkpoint(model_prefix, config.CHECKPOINT_FREQUENT)]
-    validation_monitor = ValidationMonitor(do_validation, val_loader, val_metrics,
+    validation_monitor = ValidationMonitor(do_validation, val_loader, None,
                                            host_metric_name='RefAcc',
                                            label_index_in_batch=config.DATASET.LABEL_INDEX_IN_BATCH)
 
@@ -316,7 +319,8 @@ def train_net(args, config):
         if args.dist:
             model = Apex_DDP(model, delay_allreduce=True)
 
-    train(model, optimizer, lr_scheduler, train_loader, train_sampler, train_metrics,
+    # TODO koko
+    train(model, optimizer, lr_scheduler, train_loader, train_sampler, validation_monitor,
           config.TRAIN.BEGIN_EPOCH, config.TRAIN.END_EPOCH, logger,
           rank=rank, batch_end_callbacks=batch_end_callbacks, epoch_end_callbacks=epoch_end_callbacks,
           writer=writer, validation_monitor=validation_monitor, fp16=config.TRAIN.FP16,

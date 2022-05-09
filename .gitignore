@@ -1,1 +1,5 @@
 **/__pycache__
+vl-bert-generator/model
+vl-bert-generator/refcoco/model
+vl-bert-generator/refcoco/log
+data/synz_prediction/**.pth

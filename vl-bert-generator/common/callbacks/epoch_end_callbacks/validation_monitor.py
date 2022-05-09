@@ -24,21 +24,21 @@ class ValidationMonitor(object):
         self.best_val = state_dict['best_val']
 
     def __call__(self, epoch_num, net, optimizer, writer):
-        self.val_func(net, self.val_loader, self.metrics, self.label_index_in_batch)
+        self.val_func(net, self.val_loader, self.metrics, self.label_index_in_batch, epoch_num)
 
-        name, value = self.metrics.get()
+        # name, value = self.metrics.get()
         s = "Epoch[%d] \tVal-" % (epoch_num)
-        for n, v in zip(name, value):
-            if n == self.host_metric_name and v > self.best_val:
-                self.best_epoch = epoch_num
-                self.best_val = v
-                logging.info('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-                print('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-            s += "%s=%f,\t" % (n, v)
-            if writer is not None:
-                writer.add_scalar(tag='Val-' + n,
-                                  scalar_value=v,
-                                  global_step=epoch_num + 1)
+        # for n, v in zip(name, value):
+        #     if n == self.host_metric_name and v > self.best_val:
+        #         self.best_epoch = epoch_num
+        #         self.best_val = v
+        #         logging.info('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
+        #         print('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
+        #     s += "%s=%f,\t" % (n, v)
+        #     if writer is not None:
+        #         writer.add_scalar(tag='Val-' + n,
+        #                           scalar_value=v,
+        #                           global_step=epoch_num + 1)
         logging.info(s)
         print(s)
 

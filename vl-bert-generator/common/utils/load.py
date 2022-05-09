@@ -29,7 +29,7 @@ def smart_resume(model, optimizer, validation_monitor, config, model_prefix, log
         # model.load_state_dict(check_point['state_dict'])
         smart_load_model_state_dict(model, check_point['state_dict'])
         optimizer.load_state_dict(check_point['optimizer'])
-        if 'validation_monitor' in check_point:
+        if validation_monitor is not None and 'validation_monitor' in check_point:
             validation_monitor.load_state_dict(check_point['validation_monitor'])
             print(
                 'Best Val {}: {}, Epoch: {}'.format(validation_monitor.host_metric_name,
@@ -45,7 +45,7 @@ def smart_resume(model, optimizer, validation_monitor, config, model_prefix, log
                 # model.load_state_dict(check_point['state_dict'])
                 smart_load_model_state_dict(model, check_point['state_dict'])
                 optimizer.load_state_dict(check_point['optimizer'])
-                if 'validation_monitor' in check_point:
+                if validation_monitor is not None and 'validation_monitor' in check_point:
                     validation_monitor.load_state_dict(check_point['validation_monitor'])
                     print(
                         'Best Val {}: {}, Epoch: {}'.format(validation_monitor.host_metric_name,

@@ -105,7 +105,9 @@ class Block(nn.Module):
             nn.Dropout(config.resid_pdrop),
         )
 
-    def forward(self, target, encoder_output):
+    def forward(self, input):
+        target, encoder_output = input
+        orig_encoder_output = encoder_output
         resid = target
         target = self.ln1(target)
         dec_output = self.attn1(target, target, target)
@@ -116,7 +118,7 @@ class Block(nn.Module):
         dec_output = self.attn2(encoder_output, dec_output, encoder_output)
         dec_output = dec_output + resid
         dec_output = dec_output + self.mlp(self.ln3(dec_output))
-        return dec_output
+        return (dec_output, orig_encoder_output)
 
 
 class GPT(nn.Module):
@@ -225,7 +227,7 @@ class GPT(nn.Module):
         x = token_embeddings + position_embeddings
                     
         x = self.drop(x)
-        x = self.blocks(x, encoder_output)
+        x, _ = self.blocks((x, encoder_output))
         x = self.ln_f(x)
         logits: torch.Tensor = self.head(x)
 

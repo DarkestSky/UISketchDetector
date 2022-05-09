@@ -143,10 +143,7 @@ class ResNetVLBERT(Module):
 
         # classifier
         # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
-        
-        import pdb
-        pdb.set_trace()
-        
+                
         # generator
         logits, loss = self.gpt(pred_labels, hidden_states_regions, gt_labels, pad_token = self.gpt_pad_token)
 

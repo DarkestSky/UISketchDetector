@@ -159,9 +159,6 @@ def train_net(args, config):
             torch.cuda.set_device(int(config.GPUS))
             model.cuda()
 
-        import pdb
-        pdb.set_trace()
-
         # loader
         train_loader = make_dataloader(config, mode='train', distributed=False)
         val_loader = make_dataloader(config, mode='val', distributed=False)
@@ -217,7 +214,6 @@ def train_net(args, config):
         smart_partial_load_model_state_dict(model, pretrain_state_dict)
 
     # metrics
-    # TODO 这里有没有必要保留
     # train_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
     #                                                   num_replicas=world_size if args.dist else 1),
     #                       refcoco_metrics.ClsAccuracy(allreduce=args.dist,
@@ -319,8 +315,7 @@ def train_net(args, config):
         if args.dist:
             model = Apex_DDP(model, delay_allreduce=True)
 
-    # TODO koko
-    train(model, optimizer, lr_scheduler, train_loader, train_sampler, validation_monitor,
+    train(model, optimizer, lr_scheduler, train_loader, train_sampler, None,
           config.TRAIN.BEGIN_EPOCH, config.TRAIN.END_EPOCH, logger,
           rank=rank, batch_end_callbacks=batch_end_callbacks, epoch_end_callbacks=epoch_end_callbacks,
           writer=writer, validation_monitor=validation_monitor, fp16=config.TRAIN.FP16,

@@ -19,7 +19,7 @@ class BatchCollator(object):
         else:
             image_none = True
         max_boxes = max([data[self.data_names.index('boxes')].shape[0] for data in batch])
-        max_expression_length = max([len(data[self.data_names.index('expression')]) for data in batch])
+        max_expression_length = max([len(data[self.data_names.index('description')]) for data in batch])
 
         for i, ibatch in enumerate(batch):
             out = {}
@@ -33,12 +33,12 @@ class BatchCollator(object):
             boxes = ibatch[self.data_names.index('boxes')]
             out['boxes'] = clip_pad_boxes(boxes, max_boxes, pad=-2)
 
-            expression = ibatch[self.data_names.index('expression')]
-            out['expression'] = clip_pad_1d(expression, max_expression_length, pad=0)
+            expression = ibatch[self.data_names.index('description')]
+            out['description'] = clip_pad_1d(expression, max_expression_length, pad=0)
 
-            if 'label' in self.data_names:
-                label = ibatch[self.data_names.index('label')]
-                out['label'] = clip_pad_1d(label, max_boxes, pad=-1)
+            # if 'label' in self.data_names:
+            #     label = ibatch[self.data_names.index('label')]
+            #     out['label'] = clip_pad_1d(label, max_boxes, pad=-1)
 
             other_names = [data_name for data_name in self.data_names if data_name not in out]
             for name in other_names:

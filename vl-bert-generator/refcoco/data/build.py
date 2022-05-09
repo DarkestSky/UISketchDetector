@@ -35,6 +35,7 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
                     expose_sampler=False):
     assert mode in ['train', 'val', 'test']
     sketch_root_path = os.path.join(cfg.DATASET.SYNZ_ROOT, 'images')
+    sketch_root_path = os.path.join(sketch_root_path, mode)
     prediction_path = os.path.join(cfg.DATASET.PREDICTION_ROOT, mode + '.pth')
     description_path = cfg.DATASET.DESCRIPTION_PATH
     synz_annotation_path = os.path.join(cfg.DATASET.SYNZ_ROOT, 'annotations/' + mode +'.json')
@@ -74,7 +75,7 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
                        description_path=description_path, synz_annotations_path=synz_annotation_path,
                        pretrained_model_name=cfg.NETWORK.BERT_MODEL_NAME, transform=transform,
                        add_image_as_a_box=cfg.DATASET.ADD_IMAGE_AS_A_BOX,
-                       aspect_grouping=aspect_grouping)
+                       aspect_grouping=aspect_grouping, test_mode=(mode=='test'))
 
         # dataset = build_dataset(dataset_name=cfg.DATASET.DATASET, ann_file=ann_file, image_set=image_set,
         #                         boxes=boxes, proposal_source=cfg.DATASET.PROPOSAL_SOURCE,

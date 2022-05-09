@@ -24,7 +24,7 @@ DATASET:
   TRAIN_IMAGE_SET: 'train'
   VAL_IMAGE_SET: 'val'
   TEST_IMAGE_SET: 'test'
-  ADD_IMAGE_AS_A_BOX: true
+  ADD_IMAGE_AS_A_BOX: false
   ZIP_MODE: false
   CACHE_MODE: false
   IGNORE_DB_CACHE: true
@@ -87,8 +87,8 @@ NETWORK:
 
   CLASSIFIER_DROPOUT: 0.0
 
-  # 21 个类别, 0 不使用, 再加 bos, eos, pad tokens 三项
-  GPT_VOCAB_SIZE: 25
+  # 0 不使用
+  GPT_VOCAB_SIZE: 22
   GPT_BLOCK_SIZE: 50
   GPT_N_LAYER: 6
   GPT_N_HEAD: 12

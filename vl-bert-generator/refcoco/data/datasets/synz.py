@@ -15,7 +15,7 @@ class SynZ(Dataset):
     def __init__(self, sketch_root_path, prediction_path, description_path, synz_annotations_path,
                  pretrained_model_name=None, transform = None,
                  add_image_as_a_box=False, mask_size=(14, 14),
-                 aspect_grouping=False, **kwargs) -> None:
+                 aspect_grouping=False, test_mode=False, **kwargs) -> None:
         '''
             基于 SynZ 生成的草图及检测结果的数据集, 引入了 Screen2Words 中的文本描述数据
         
@@ -32,6 +32,7 @@ class SynZ(Dataset):
         self.mask_size = mask_size
         self.aspect_grouping = aspect_grouping
         self.transform = transform
+        self.test_mode = test_mode
         
         # input paths
         self.synz_annotations_path = synz_annotations_path  # json file
@@ -42,7 +43,7 @@ class SynZ(Dataset):
         # load SynZ annotations file in json format
         # annotations are used as ground truth
         # categories are also included
-        self.synz_annotations, self.categories = self.load_synz_annotations()
+        self.synz_annotations, self.categories, self.rico_id_to_sketch_id = self.load_synz_annotations()
         self.category_map = {category['name']: category['id'] for category in self.categories}
         self.id_to_category = {category['id']: category['name'] for category in self.categories}
 
@@ -51,7 +52,11 @@ class SynZ(Dataset):
                
         # load description text from Screen2Words, as DataFrame
         self.descriptions = self.load_descriptions()
+        self.descriptions_rico_ids = sorted(self.descriptions['screenId'].unique())
         
+        self.avail_rico = [x for x in self.descriptions_rico_ids if x in self.rico_id_to_sketch_id.keys()]
+        
+        self.cache_dir = None
         self.tokenizer = BertTokenizer.from_pretrained(
             'bert-base-uncased' if pretrained_model_name is None else pretrained_model_name,
             cache_dir=self.cache_dir)        
@@ -65,22 +70,24 @@ class SynZ(Dataset):
             由于一张草图可能对应多条文本描述, 每条文本描述视为单独的一条数据
         '''
         database = []
-        for sketch_id, sketch in self.synz_annotations.items():
-            rico_id = sketch['file_name'][:-4].split('_')[1]
-            predictions = [pred for pred in self.predictions if pred['image_id'] == sketch_id]
-            description = self.descriptions.query(f"screenId == {rico_id}")
-            for index, row in description.iterrows():
-                idb = {
-                    'sketch_id': sketch_id,
-                    'rico_id': rico_id,
-                    'sketch_file_name': self.synz_annotations[sketch_id]['file_name'],
-                    'width': sketch['width'],
-                    'height': sketch['height'],
-                    'pred_box': predictions,
-                    'description': row['summary'],
-                    'gt_anno': sketch['annotations']
-                }
-                database.append(idb)
+        
+        for rico_id in self.avail_rico:
+            for sketch_id in self.rico_id_to_sketch_id[rico_id]:
+                sketch = self.synz_annotations[sketch_id]
+                predictions = self.predictions[sketch_id]
+                description = self.descriptions.query(f"screenId == {rico_id}")
+                for index, row in description.iterrows():
+                    idb = {
+                        'sketch_id': sketch_id,
+                        'rico_id': rico_id,
+                        'sketch_file_name': self.synz_annotations[sketch_id]['file_name'],
+                        'width': sketch['width'],
+                        'height': sketch['height'],
+                        'pred_box': predictions,
+                        'description': row['summary'],
+                        'gt_anno': sketch['annotations']
+                    }
+                    database.append(idb)
             
         return database
     
@@ -96,11 +103,18 @@ class SynZ(Dataset):
         '''
         annotations = {}
         categories = []
+        rico_id_to_sketch_id = {}
         with open(self.synz_annotations_path) as ann_file:
             ann = json.load(ann_file)
             categories.extend(ann['categories'])
             
             annotations = {image['id']: image for image in ann['images']}
+            for sketch_id, sketch in annotations.items():
+                rico_id = int(sketch['file_name'][:-4].split('_')[1])
+                if rico_id in rico_id_to_sketch_id.keys():
+                    rico_id_to_sketch_id[rico_id].append(sketch_id)
+                else:
+                    rico_id_to_sketch_id[rico_id] = [sketch_id]
             for annotation in ann['annotations']:
                 if annotation['image_id'] not in annotations:
                     print('find annotation id {} for image {}, but image {} does not exist.'.format(annotation['id'], annotation['image_id'], annotation['image_id']))
@@ -109,13 +123,14 @@ class SynZ(Dataset):
                         annotations[annotation['image_id']]['annotations'] = []
                     annotations[annotation['image_id']]['annotations'].append(annotation)
         
-        return annotations, categories
+        return annotations, categories, rico_id_to_sketch_id
                 
-    def load_predictions(self) -> list:
+    def load_predictions(self) -> dict:
         '''
             读取 SynZ 的草图识别结果
         '''
-        predictions: list = torch.load(self.prediction_path)
+        predictions_raw: list = torch.load(self.prediction_path)
+        predictions = {pred['image_id']: pred['instances'] for pred in predictions_raw}
         
         return predictions
     
@@ -127,6 +142,10 @@ class SynZ(Dataset):
         
         return descriptions
 
+    @property
+    def data_names(self):
+        return ['image', 'boxes', 'image_info', 'description', 'labels', 'gt_labels']
+    
     def __len__(self) -> int:
         return len(self.database)
     
@@ -153,37 +172,32 @@ class SynZ(Dataset):
             x_, y_, w_, h_ = box['bbox']
             gt_boxes.append([x_, y_, x_ + w_, y_ + h_])
             gt_labels.append(box['category_id'])
-        gt_boxes = torch.as_tensor(gt_boxes)
+        gt_boxes = torch.as_tensor(gt_boxes, dtype=torch.float32)
         gt_labels = torch.as_tensor(gt_labels)
+        
+        # assign label to each box by its IoU with gt_box
+        paired_gt_labels = pair_bbox(pred_boxes, gt_boxes, gt_labels)
+        assert pred_labels.size() == paired_gt_labels.size(), 'Size of labels should be same!'
         
         if self.add_image_as_a_box:
             w0, h0 = sketch_image_info[0], sketch_image_info[1]
             image_box = torch.as_tensor([[0.0, 0.0, w0 - 1, h0 - 1]])
             pred_boxes = torch.cat((image_box, pred_boxes), dim=0)
         
+        flipped = False
         if self.transform is not None:
-            gt_box_len = gt_boxes.size(dim=0)
-            boxes = torch.cat((gt_boxes, pred_boxes), 0)
-            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped)
-            gt_boxes = boxes[:gt_box_len]
-            boxes = boxes[gt_box_len:]
+            sketch_image, pred_boxes, _, sketch_image_info, flipped = self.transform(sketch_image, pred_boxes, None, sketch_image_info, flipped)
         
         # clamp boxes
-        w = im_info[0].item()
-        h = im_info[1].item()
+        w = sketch_image_info[0].item()
+        h = sketch_image_info[1].item()
         pred_boxes[:, [0, 2]] = pred_boxes[:, [0, 2]].clamp(min=0, max=w - 1)
         pred_boxes[:, [1, 3]] = pred_boxes[:, [1, 3]].clamp(min=0, max=h - 1)
-        gt_boxes[[0, 2]] = gt_boxes[[0, 2]].clamp(min=0, max=w - 1)
-        gt_boxes[[1, 3]] = gt_boxes[[1, 3]].clamp(min=0, max=h - 1)
-        
-        # assign label to each box by its IoU with gt_box
-        paired_gt_labels = pair_bbox(pred_boxes, gt_boxes, gt_labels)
-        assert pred_labels.size() == paired_gt_labels.size(), 'Size of labels should be same!'
         
         # description
         descrip_tokens = self.tokenizer.tokenize(idb['description'])
         if flipped:
-            exp_retokens = self.flip_tokens(exp_retokens, verbose=True)
+            descrip_tokens = self.flip_tokens(descrip_tokens, verbose=True)
         descrip_id = self.tokenizer.convert_tokens_to_ids(descrip_tokens)
         
         return sketch_image, pred_boxes, sketch_image_info, descrip_id, pred_labels, paired_gt_labels

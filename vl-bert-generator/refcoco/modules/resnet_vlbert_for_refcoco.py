@@ -144,9 +144,11 @@ class ResNetVLBERT(Module):
         # classifier
         # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
         
+        import pdb
+        pdb.set_trace()
+        
         # generator
-        pred_seq, target_seq = self.padding_gpt_seq(pred_labels, gt_labels)
-        logits, loss = self.gpt(pred_seq, hidden_states_regions, target_seq, pad_token = self.gpt_pad_token)
+        logits, loss = self.gpt(pred_labels, hidden_states_regions, gt_labels, pad_token = self.gpt_pad_token)
 
         # loss
         # cls_loss = F.binary_cross_entropy_with_logits(logits[box_mask], label[box_mask])
@@ -230,8 +232,7 @@ class ResNetVLBERT(Module):
         # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
         
         # generator
-        pred_seq, target_seq = self.padding_gpt_seq(pred_labels, gt_labels)
-        logits, loss = self.gpt(pred_seq, hidden_states_regions, pad_token = self.gpt_pad_token)
+        logits, loss = self.gpt(pred_labels, hidden_states_regions, pad_token = self.gpt_pad_token)
 
         # pad back to origin len for compatibility with DataParallel
         # logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
@@ -246,22 +247,5 @@ class ResNetVLBERT(Module):
         # outputs.update({'label_logits': logits,
         #                 'pred_boxes': pred_boxes})
         
-        if self.add_image_as_a_box:
-            boxes = boxes[:, 1:]
-
         return logits, boxes
 
-    def padding_gpt_seq(self, pred_seq, target_seq):
-        chunk: torch.Tensor = torch.zeros(self.gpt_max_length+1, dtype=torch.long) + self.gpt_pad_token
-        chunk[0] = self.gpt_bos_token
-        chunk[1:len(pred_seq)+1] = pred_seq
-        chunk[len(pred_seq)+1] = self.gpt_eos_token
-        x = chunk[:-1]
-        
-        chunk: torch.Tensor = torch.zeros(self.gpt_max_length+1, dtype=torch.long) + self.gpt_pad_token
-        chunk[0] = self.gpt_bos_token
-        chunk[1:len(target_seq)+1] = target_seq
-        chunk[len(target_seq)+1] = self.gpt_eos_token
-        y = chunk[1:]
-        
-        return x,y

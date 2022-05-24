@@ -32,6 +32,9 @@ class BatchCollator(object):
 
             boxes = ibatch[self.data_names.index('boxes')]
             out['boxes'] = clip_pad_boxes(boxes, max_boxes, pad=-2)
+            
+            orig_boxes = ibatch[self.data_names.index('orig_boxes')]
+            out['orig_boxes'] = orig_boxes
 
             expression = ibatch[self.data_names.index('description')]
             out['description'] = clip_pad_1d(expression, max_expression_length, pad=0)

@@ -33,6 +33,9 @@ def make_batch_data_sampler(dataset, sampler, aspect_grouping, batch_size):
 
 def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_replicas=None, rank=None,
                     expose_sampler=False):
+    '''
+        针对 SynZ 识别结果组成的数据集进行了调整
+    '''
     assert mode in ['train', 'val', 'test']
     sketch_root_path = os.path.join(cfg.DATASET.SYNZ_ROOT, 'images')
     sketch_root_path = os.path.join(sketch_root_path, mode)
@@ -67,6 +70,7 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
         num_workers = cfg.NUM_WORKERS_PER_GPU * num_gpu
         # boxes = cfg.DATASET.TEST_BOXES
 
+    # TODO Remove this
     transform = build_transforms(cfg, mode)
 
     if dataset is None:
@@ -76,18 +80,6 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
                        pretrained_model_name=cfg.NETWORK.BERT_MODEL_NAME, transform=transform,
                        add_image_as_a_box=cfg.DATASET.ADD_IMAGE_AS_A_BOX,
                        aspect_grouping=aspect_grouping, test_mode=(mode=='test'))
-
-        # dataset = build_dataset(dataset_name=cfg.DATASET.DATASET, ann_file=ann_file, image_set=image_set,
-        #                         boxes=boxes, proposal_source=cfg.DATASET.PROPOSAL_SOURCE,
-        #                         answer_vocab_file=cfg.DATASET.ANSWER_VOCAB_FILE,
-        #                         root_path=cfg.DATASET.ROOT_PATH, data_path=cfg.DATASET.DATASET_PATH,
-        #                         test_mode=(mode == 'test'), transform=transform,
-        #                         zip_mode=cfg.DATASET.ZIP_MODE, cache_mode=cfg.DATASET.CACHE_MODE,
-        #                         cache_db=True if (rank is None or rank == 0) else False,
-        #                         ignore_db_cache=cfg.DATASET.IGNORE_DB_CACHE,
-        #                         add_image_as_a_box=cfg.DATASET.ADD_IMAGE_AS_A_BOX,
-        #                         aspect_grouping=aspect_grouping,
-        #                         pretrained_model_name=cfg.NETWORK.BERT_MODEL_NAME)
 
     sampler = make_data_sampler(dataset, shuffle, distributed, num_replicas, rank)
     batch_sampler = make_batch_data_sampler(dataset, sampler, aspect_grouping, batch_size)

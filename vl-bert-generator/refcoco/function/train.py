@@ -58,6 +58,7 @@ def train_net(args, config):
     if args.cudnn_off:
         torch.backends.cudnn.enabled = False
 
+    # TODO Not Supported
     if args.dist:
         model = eval(config.MODULE)(config)
         local_rank = int(os.environ.get('LOCAL_RANK') or 0)
@@ -213,34 +214,11 @@ def train_net(args, config):
             pretrain_state_dict = pretrain_state_dict_parsed
         smart_partial_load_model_state_dict(model, pretrain_state_dict)
 
-    # metrics
-    # train_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
-    #                                                   num_replicas=world_size if args.dist else 1),
-    #                       refcoco_metrics.ClsAccuracy(allreduce=args.dist,
-    #                                                   num_replicas=world_size if args.dist else 1),
-    #                       refcoco_metrics.ClsPosAccuracy(allreduce=args.dist,
-    #                                                      num_replicas=world_size if args.dist else 1),
-    #                       refcoco_metrics.ClsPosFraction(allreduce=args.dist,
-    #                                                      num_replicas=world_size if args.dist else 1),
-    #                       ]
-    # val_metrics_list = [refcoco_metrics.RefAccuracy(allreduce=args.dist,
-    #                                                 num_replicas=world_size if args.dist else 1)]
-    # for output_name, display_name in config.TRAIN.LOSS_LOGGERS:
-    #     train_metrics_list.append(
-    #         refcoco_metrics.LossLogger(output_name, display_name=display_name, allreduce=args.dist,
-    #                                    num_replicas=world_size if args.dist else 1))
-
-    # train_metrics = CompositeEvalMetric()
-    # val_metrics = CompositeEvalMetric()
-    # for child_metric in train_metrics_list:
-    #     train_metrics.add(child_metric)
-    # for child_metric in val_metrics_list:
-    #     val_metrics.add(child_metric)
-
     # epoch end callbacks
     epoch_end_callbacks = []
     if (rank is None) or (rank == 0):
         epoch_end_callbacks = [Checkpoint(model_prefix, config.CHECKPOINT_FREQUENT)]
+
     validation_monitor = ValidationMonitor(do_validation, val_loader, None,
                                            host_metric_name='RefAcc',
                                            label_index_in_batch=config.DATASET.LABEL_INDEX_IN_BATCH)

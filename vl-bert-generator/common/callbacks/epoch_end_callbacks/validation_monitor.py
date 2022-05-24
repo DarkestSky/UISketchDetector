@@ -1,6 +1,11 @@
+'''
+    Do validation, and remember the best epoch
+'''
+
 import logging
 import shutil
 
+from numpy import Inf
 
 class ValidationMonitor(object):
     def __init__(self, val_func, val_loader, metrics, host_metric_name='Acc', label_index_in_batch=-1):
@@ -9,6 +14,7 @@ class ValidationMonitor(object):
         self.val_loader = val_loader
         self.metrics = metrics
         self.host_metric_name = host_metric_name
+        self.loss_mean = Inf
         self.best_epoch = -1
         self.best_val = -1.0
         self.label_index_in_batch = label_index_in_batch
@@ -24,28 +30,15 @@ class ValidationMonitor(object):
         self.best_val = state_dict['best_val']
 
     def __call__(self, epoch_num, net, optimizer, writer):
-        self.val_func(net, self.val_loader, self.metrics, self.label_index_in_batch, epoch_num)
+        loss_mean = self.val_func(net, self.val_loader, self.label_index_in_batch, epoch_num)
 
-        # name, value = self.metrics.get()
-        s = "Epoch[%d] \tVal-" % (epoch_num)
-        # for n, v in zip(name, value):
-        #     if n == self.host_metric_name and v > self.best_val:
-        #         self.best_epoch = epoch_num
-        #         self.best_val = v
-        #         logging.info('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-        #         print('New Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-        #     s += "%s=%f,\t" % (n, v)
-        #     if writer is not None:
-        #         writer.add_scalar(tag='Val-' + n,
-        #                           scalar_value=v,
-        #                           global_step=epoch_num + 1)
-        logging.info(s)
-        print(s)
-
-        logging.info('Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-        print('Best Val {}: {}, Epoch: {}'.format(self.host_metric_name, self.best_val, self.best_epoch))
-
-
-
-
-
+        if loss_mean < self.loss_mean:
+            self.best_epoch = epoch_num
+            self.loss_mean = loss_mean
+            logging.info('New Best Val loss: {}, Epoch: {}'.format(self.loss_mean, self.best_epoch))
+            print('New Best Val loss: {}, Epoch: {}'.format(self.loss_mean, self.best_epoch))
+        if writer is not None:
+            writer.add_scalar(tag='Val',
+                              scalar_value=loss_mean,
+                              global_step=epoch_num + 1)
+ 

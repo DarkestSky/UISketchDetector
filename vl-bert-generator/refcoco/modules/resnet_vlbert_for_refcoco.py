@@ -1,3 +1,8 @@
+'''
+    基于 VL-BERT 提供的在 RefCOCO+ 数据集上运行的模型修改
+    模型运行在新的数据集上
+'''
+
 import os
 import torch
 import torch.nn as nn
@@ -15,8 +20,9 @@ class ResNetVLBERT(Module):
     def __init__(self, config):
 
         super(ResNetVLBERT, self).__init__(config)
-        self.add_image_as_a_box = config.DATASET.ADD_IMAGE_AS_A_BOX
+        self.add_image_as_a_box = config.DATASET.ADD_IMAGE_AS_A_BOX     # 图片整体也作为一个 box 传入
 
+        # 使用 Faster R-CNN 提取各个区域的特征
         self.image_feature_extractor = FastRCNN(config,
                                                 average_pool=True,
                                                 final_dim=config.NETWORK.IMAGE_FINAL_DIM,
@@ -40,18 +46,16 @@ class ResNetVLBERT(Module):
         self.vlbert = VisualLinguisticBert(config.NETWORK.VLBERT,
                                          language_pretrained_model_path=language_pretrained_model_path)
 
-        # transform = VisualLinguisticBertMVRCHeadTransform(config.NETWORK.VLBERT)
-        # linear = nn.Linear(config.NETWORK.VLBERT.hidden_size, 1)
-        # self.final_mlp = nn.Sequential(
-        #     transform,
-        #     nn.Dropout(config.NETWORK.CLASSIFIER_DROPOUT, inplace=False),
-        #     linear
-        # )
+        #####  NOT USED #####
         
         self.gpt_bos_token = config.NETWORK.GPT_VOCAB_SIZE - 3
         self.gpt_eos_token = config.NETWORK.GPT_VOCAB_SIZE - 2
         self.gpt_pad_token = config.NETWORK.GPT_VOCAB_SIZE - 1
         self.gpt_max_length = config.NETWORK.GPT_BLOCK_SIZE
+        
+        ######################
+        
+        # GPT 接收的序列长度为 50, 不使用 bos eos 及 pad 字符
         gpt_config = GPTConfig(config.NETWORK.GPT_VOCAB_SIZE, config.NETWORK.GPT_BLOCK_SIZE, 
                                n_layer = config.NETWORK.GPT_N_LAYER, n_head = config.NETWORK.GPT_N_HEAD, n_embd = config.NETWORK.GPT_N_EMBD)
         self.gpt = GPT(gpt_config)
@@ -66,10 +70,7 @@ class ResNetVLBERT(Module):
         if self.object_linguistic_embeddings is not None:
             self.object_linguistic_embeddings.weight.data.normal_(mean=0.0,
                                                                   std=self.config.NETWORK.VLBERT.initializer_range)
-        # for m in self.final_mlp.modules():
-        #     if isinstance(m, torch.nn.Linear):
-        #         torch.nn.init.xavier_uniform_(m.weight)
-        #         torch.nn.init.constant_(m.bias, 0)
+        # GPT 中的参数在 GPT 的 init 方法中进行初始化
 
     def train(self, mode=True):
         super(ResNetVLBERT, self).train(mode)
@@ -86,7 +87,8 @@ class ResNetVLBERT(Module):
                       im_info,
                       expression,
                       pred_labels,
-                      gt_labels
+                      gt_labels,
+                      orig_boxes,
                       ):
         ###########################################
 
@@ -139,30 +141,9 @@ class ResNetVLBERT(Module):
                                                                  output_text_and_object_separately=True)
 
         ###########################################
-        # outputs = {}
-
-        # classifier
-        # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
                 
         # generator
         logits, loss = self.gpt(pred_labels, hidden_states_regions, gt_labels, pad_token = self.gpt_pad_token)
-
-        # loss
-        # cls_loss = F.binary_cross_entropy_with_logits(logits[box_mask], label[box_mask])
-
-        # pad back to origin len for compatibility with DataParallel
-        # logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
-        # logits_[:, :logits.shape[1]] = logits
-        # logits = logits_
-        # label_ = label.new_zeros((logits.shape[0], origin_len)).fill_(-1)
-        # label_[:, :label.shape[1]] = label
-        # label = label_
-
-        # outputs.update({'label_logits': logits,
-        #                 'label': label,
-        #                 'cls_loss': cls_loss})
-
-        # loss = cls_loss.mean()
 
         return logits, loss
 
@@ -172,7 +153,9 @@ class ResNetVLBERT(Module):
                           im_info,
                           expression,
                           pred_labels,
-                          gt_labels):
+                          gt_labels,
+                          orig_boxes,
+                          ):
 
         ###########################################
 
@@ -223,26 +206,9 @@ class ResNetVLBERT(Module):
                                                                  output_text_and_object_separately=True)
 
         ###########################################
-        # outputs = {}
-
-        # classifier
-        # logits = self.final_mlp(hidden_states_regions).squeeze(-1)
         
         # generator
-        logits, loss = self.gpt(pred_labels, hidden_states_regions, pad_token = self.gpt_pad_token)
-
-        # pad back to origin len for compatibility with DataParallel
-        # logits_ = logits.new_zeros((logits.shape[0], origin_len)).fill_(-10000.0)
-        # logits_[:, :logits.shape[1]] = logits
-        # logits = logits_
-
-        # w_ratio = im_info[:, 2]
-        # h_ratio = im_info[:, 3]
-        # pred_boxes = boxes[_batch_inds, logits.argmax(1), :4]
-        # pred_boxes[:, [0, 2]] /= w_ratio.unsqueeze(1)
-        # pred_boxes[:, [1, 3]] /= h_ratio.unsqueeze(1)
-        # outputs.update({'label_logits': logits,
-        #                 'pred_boxes': pred_boxes})
+        logits, loss = self.gpt(pred_labels, hidden_states_regions, gt_labels, pad_token = self.gpt_pad_token)
         
-        return logits, boxes
+        return logits, orig_boxes, loss
 

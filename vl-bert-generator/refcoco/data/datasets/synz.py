@@ -61,7 +61,7 @@ class SynZ(Dataset):
             'bert-base-uncased' if pretrained_model_name is None else pretrained_model_name,
             cache_dir=self.cache_dir)        
         
-        self.database = self.build_database()
+        self.database, self.sketch_id_list = self.build_database()
         
     def build_database(self) -> list:
         '''
@@ -70,8 +70,12 @@ class SynZ(Dataset):
             由于一张草图可能对应多条文本描述, 每条文本描述视为单独的一条数据
         '''
         database = []
+        sketch_id_list = []
         
-        for rico_id in self.avail_rico:
+        short_rico = self.avail_rico[:1000]
+        
+        # for rico_id in self.avail_rico:
+        for rico_id in short_rico:
             for sketch_id in self.rico_id_to_sketch_id[rico_id]:
                 sketch = self.synz_annotations[sketch_id]
                 predictions = self.predictions[sketch_id]
@@ -87,9 +91,13 @@ class SynZ(Dataset):
                         'description': row['summary'],
                         'gt_anno': sketch['annotations']
                     }
+                    sketch_id_item = {
+                        'image_id': sketch_id
+                    }
                     database.append(idb)
+                    sketch_id_list.append(sketch_id_item)
             
-        return database
+        return database, sketch_id_list
     
     def load_synz_annotations(self):
         '''
@@ -144,7 +152,7 @@ class SynZ(Dataset):
 
     @property
     def data_names(self):
-        return ['image', 'boxes', 'image_info', 'description', 'labels', 'gt_labels']
+        return ['image', 'boxes', 'image_info', 'description', 'labels', 'gt_labels', 'orig_boxes']
     
     def __len__(self) -> int:
         return len(self.database)
@@ -184,6 +192,7 @@ class SynZ(Dataset):
             image_box = torch.as_tensor([[0.0, 0.0, w0 - 1, h0 - 1]])
             pred_boxes = torch.cat((image_box, pred_boxes), dim=0)
         
+        orig_pred_boxes = pred_boxes
         flipped = False
         if self.transform is not None:
             sketch_image, pred_boxes, _, sketch_image_info, flipped = self.transform(sketch_image, pred_boxes, None, sketch_image_info, flipped)
@@ -200,7 +209,7 @@ class SynZ(Dataset):
             descrip_tokens = self.flip_tokens(descrip_tokens, verbose=True)
         descrip_id = self.tokenizer.convert_tokens_to_ids(descrip_tokens)
         
-        return sketch_image, pred_boxes, sketch_image_info, descrip_id, pred_labels, paired_gt_labels
+        return sketch_image, pred_boxes, sketch_image_info, descrip_id, pred_labels, paired_gt_labels, orig_pred_boxes
     
     def _load_image(self, path):
         return Image.open(path).convert('RGB')
@@ -219,7 +228,13 @@ class SynZ(Dataset):
         if verbose and changed:
             logging.info('[Tokens Flip] {} -> {}'.format(tokens, tokens_new))
         return tokens_new
- 
+
+#####################################################################
+'''
+    取自 detectron2
+    利用 IoU 讲预测的 bbox 和 Ground-truth 匹配
+    返回匹配的 label 
+'''
 
 def pair_bbox(pred_boxes: torch.Tensor, gt_boxes: torch.Tensor, gt_labes: torch.Tensor) -> torch.Tensor:
     match_quality_matrix = pairwise_iou(gt_boxes, pred_boxes)

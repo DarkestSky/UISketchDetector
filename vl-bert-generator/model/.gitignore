@@ -1,1 +1,2 @@
-pretrained_model
+pretrained_model/*
+!pretrained_model/PREPARE_PRETRAINED_MODELS.md

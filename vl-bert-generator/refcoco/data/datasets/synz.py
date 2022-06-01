@@ -72,10 +72,7 @@ class SynZ(Dataset):
         database = []
         sketch_id_list = []
         
-        short_rico = self.avail_rico[:1000]
-        
-        # for rico_id in self.avail_rico:
-        for rico_id in short_rico:
+        for rico_id in self.avail_rico:
             for sketch_id in self.rico_id_to_sketch_id[rico_id]:
                 sketch = self.synz_annotations[sketch_id]
                 predictions = self.predictions[sketch_id]

@@ -6,7 +6,7 @@
 
 ![整体模型设计方案](./src/model%20design.drawio.png)
 
-<center>整体模型设计方案</center>
+<p align="center">整体模型设计方案</p>
 
 ### RetinaNet
 
@@ -14,13 +14,13 @@
 
 ![RetinaNet 整体网络](./src/synz_general.drawio.png)
 
-<center>RetinaNet 部分的整体网络设计</center>
+<p align="center">RetinaNet 部分的整体网络设计</p>
 
 针对输入草图，RetinaNet 的 backbone 为 [Feature Pyramid Network](https://arxiv.org/abs/1612.03144)，得到特征金字塔后使用两个全卷积子网络，分别实现类别预测和边界框回归
 
 ![特征金字塔](./src/synz.drawio.png)
 
-<center>特征金字塔的结构</center>
+<p align="center">特征金字塔的结构</p>
 
 通过左侧自底向上的通路、右侧自顶向下的通路以及横向链接，得到的右侧即为特征金字塔，各部分实现细节如下：
 
@@ -46,7 +46,7 @@ VL-BERT 对应的是 Transformer 结构中的 Encoder，而 GPT-1 对应的是 T
 
 ![vl-bert-gpt-1](./src/vl-bert-gpt-1.drawio.png)
 
-<center>VL-BERT 与 GPT-1 连接后的结构</center>
+<p align="center">VL-BERT 与 GPT-1 连接后的结构</p>
 
 #### VL-BERT
 
@@ -56,13 +56,13 @@ VL-BERT 部分接收的输入是**草图**、**草图识别结果**及**描述�
 
 ![VL-BERT 结构](./src/vlbert.drawio.png)
 
-<center>VL-BERT 的整体结构</center>
+<p align="center">VL-BERT 的整体结构</p>
 
 草图和识别结果提供给 Faster R-CNN 来提取出这些区域的特征向量，描述文本则由 BertTokenizer 进行处理，对文本进行子词粒度的分词，并转化为字典下标的表达形式
 
 ![visual linguistic bert](./src/visual-linguistic%20bert%20horizon.drawio.png)
 
-<center>Visual-Linguistic BERT 的结构 (Transformer)</center>
+<p align="center">Visual-Linguistic BERT 的结构 (Transformer)</p>
 
 Visual-Linguistic BERT 部分参考的是 Transformer Encoder 的结构，对输入序列进行处理，得到的是融合特征
 
@@ -74,7 +74,7 @@ GPT-1 部分的任务是基于融合特征，对草图识别得到的类别进�
 
 ![GPT-1](./src/gpt-1.drawio.png)
 
-<center>GPT-1 的结构，左侧为本课题的设计，右侧为原 GPT-1 模型</center>
+<p align="center">GPT-1 的结构，左侧为本课题的设计，右侧为原 GPT-1 模型</p>
 
 原 GPT-1 模型是基于 Transformer Decoder 进行设计，本课题的修改在于引入了来此 Encoder 的输入，方案参考 [Transformer 论文](https://arxiv.org/abs/1706.03762) 中的描述
 
@@ -93,7 +93,7 @@ GPT-1 部分的任务是基于融合特征，对草图识别得到的类别进�
 
 ![后处理效果](./src/result-compare.png)
 
-<center>后处理的效果，上为原始结果，下为处理后效果</center>
+<p align="center">后处理的效果，上为原始结果，下为处理后效果</p>
 
 为了得到完善的页面效果，采用了规则化的方式生成 XML 文件，放入 Android Studio 构建的 Android 项目，为多媒体标签提供必要的资源，即可在 Android 设备上渲染出最终的效果
 
@@ -101,7 +101,7 @@ XML 的生成采用的是绝对布局，标签类别与 Android Studio 支持的
 
 ![最终结果](./src/final_res.png)
 
-<center>最终效果，左为输入草图，中为模型结果，右为渲染效果</center>
+<p align="center">最终效果，左为输入草图，中为模型结果，右为渲染效果</p>
 
 ## 不足与展望
 
